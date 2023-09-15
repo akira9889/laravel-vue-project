@@ -1,0 +1,94 @@
+version: "3.8"
+
+volumes:
+  vendor-store:
+  node_modules-store:
+
+services:
+  app:
+    container_name: app
+    build:
+      context: .
+      dockerfile: ./docker/php/Dockerfile
+      args:
+        - ENVIRONMENT=dev
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./src/:/var/www/html
+      - ./log:/var/log
+      - vendor-store:/var/www/html/vendor
+      - node_modules-store:/var/www/html/node_modules
+
+  web:
+    container_name: nginx
+    build:
+      context: .
+      dockerfile: ./docker/nginx/Dockerfile
+      args:
+        - UPSTREAM_NAME=app
+        - FPM_PORT=9000
+    ports:
+      - "${WEB}:80"
+    volumes:
+      - ./src/:/var/www/html
+    depends_on:
+      - app
+
+  # .envファイルの「DB_HOST」とサービス名を合わせる
+  db:
+    image: mysql:8.0
+    container_name: db
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE}
+      MYSQL_USER: ${DB_USERNAME}
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      TZ: "Asia/Tokyo"
+      # 文字コード指定
+    command: mysqld --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - ./docker/db/data:/var/lib/mysql
+      - ./docker/db/my.cnf:/etc/mysql/conf.d/my.cnf
+    ports:
+      - "${DB}:3306"
+
+  db-testing:
+    image: mysql:8.0
+    container_name: db-testing
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE}
+      MYSQL_USER: ${DB_USERNAME}
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      TZ: "Asia/Tokyo"
+      # 文字コード指定
+    command: mysqld --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - ./docker/db/my.cnf:/etc/mysql/conf.d/my.cnf
+    ports:
+      - "${DB_TEST}:3306"
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: phpmyadmin
+    environment:
+      - PMA_ARBITRARY=1
+      - PMA_HOST=db
+      - PMA_USER=${DB_USERNAME}
+      - PMA_PASSWORD=${DB_PASSWORD}
+      - MSSQL_COLLATION=Japanese_CI_AS
+    depends_on:
+      - db
+    links:
+      - db
+    ports:
+      - 8580:80
+    volumes:
+      - /sessions
+
+  mailcatcher:
+    image: schickling/mailcatcher
+    ports:
+      - 1080:1080
+      - 1025:1025

@@ -1,0 +1,5 @@
+log/
+docker/db/data
+.env
+.dockerignore
+.DS_Store
